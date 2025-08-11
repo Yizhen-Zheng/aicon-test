@@ -12,6 +12,7 @@ type ItemUsecase interface {
 	GetAllItems(ctx context.Context) ([]*entity.Item, error)
 	GetItemByID(ctx context.Context, id int64) (*entity.Item, error)
 	CreateItem(ctx context.Context, input CreateItemInput) (*entity.Item, error)
+	UpdateItem(ctx context.Context, id int64, input UpdateItemInput) (*entity.Item, error) // PATCHメソッドを追加
 	DeleteItem(ctx context.Context, id int64) error
 	GetCategorySummary(ctx context.Context) (*CategorySummary, error)
 }
@@ -23,6 +24,13 @@ type CreateItemInput struct {
 	PurchasePrice int    `json:"purchase_price"`
 	PurchaseDate  string `json:"purchase_date"`
 }
+
+type UpdateItemInput struct {
+	Name          *string `json:"name"`
+	Brand         *string `json:"brand"`
+	PurchasePrice *int    `json:"purchase_price"`
+}
+
 
 type CategorySummary struct {
 	Categories map[string]int `json:"categories"`
@@ -83,6 +91,31 @@ func (u *itemUsecase) CreateItem(ctx context.Context, input CreateItemInput) (*e
 	}
 
 	return createdItem, nil
+}
+
+func (u *itemUsecase) UpdateItem(ctx context.Context, id int64, input UpdateItemInput) (*entity.Item, error) {
+	if id <= 0 {
+		return nil, domainErrors.ErrInvalidInput
+	}
+
+	// Retrieve the existing item.
+	item, err := u.itemRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply the patch and validate the result.
+	if err := item.Patch(input.Name, input.Brand, input.PurchasePrice); err != nil {
+		return nil, fmt.Errorf("%w: %s", domainErrors.ErrInvalidInput, err.Error())
+	}
+
+	// Persist the updated item.
+	updatedItem, err := u.itemRepo.Update(ctx, item)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update item: %w", err)
+	}
+
+	return updatedItem, nil
 }
 
 func (u *itemUsecase) DeleteItem(ctx context.Context, id int64) error {
