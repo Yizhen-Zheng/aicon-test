@@ -231,6 +231,93 @@ func TestItem_Update(t *testing.T) {
 	}
 }
 
+// PATCH エンドポイント用の部分更新テスト
+func TestItem_Patch(t *testing.T) {
+	initialItem, err := NewItem("Initial Name", "時計", "Initial Brand", 1000, "2023-01-01")
+	require.NoError(t, err)
+
+	originalUpdatedAt := initialItem.UpdatedAt
+	time.Sleep(1 * time.Millisecond) // Ensure timestamp changes
+
+	tests := []struct {
+		name          string
+		patchName     *string
+		patchBrand    *string
+		patchPrice    *int
+		wantErr       bool
+		expectedErr   string
+		expectedName  string
+		expectedBrand string
+		expectedPrice int
+	}{
+		{
+			name:          "正常系: 名前のみを更新",
+			patchName:     func(s string) *string { return &s }("Updated Name"),
+			patchBrand:    nil,
+			patchPrice:    nil,
+			wantErr:       false,
+			expectedName:  "Updated Name",
+			expectedBrand: "Initial Brand",
+			expectedPrice: 1000,
+		},
+		{
+			name:          "正常系: ブランドのみを更新",
+			patchName:     nil,
+			patchBrand:    func(s string) *string { return &s }("Updated Brand"),
+			patchPrice:    nil,
+			wantErr:       false,
+			expectedName:  "Updated Name", // from previous test
+			expectedBrand: "Updated Brand",
+			expectedPrice: 1000,
+		},
+		{
+			name:          "正常系: 価格のみを更新",
+			patchName:     nil,
+			patchBrand:    nil,
+			patchPrice:    func(i int) *int { return &i }(2000),
+			wantErr:       false,
+			expectedName:  "Updated Name",
+			expectedBrand: "Updated Brand",
+			expectedPrice: 2000,
+		},
+		{
+			name:       "異常系: 無効な名前（空）",
+			patchName:  func(s string) *string { return &s }(""),
+			patchBrand: nil,
+			patchPrice: nil,
+			wantErr:    true,
+			expectedErr: "name is required",
+		},
+		{
+			name:          "異常系: 無効な価格（負）",
+			patchName:     nil,
+			patchBrand:    nil,
+			patchPrice:    func(i int) *int { return &i }(-100),
+			wantErr:       true,
+			expectedErr:   "purchase_price must be 0 or greater",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := initialItem.Patch(tt.patchName, tt.patchBrand, tt.patchPrice)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedErr)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedName, initialItem.Name)
+			assert.Equal(t, tt.expectedBrand, initialItem.Brand)
+			assert.Equal(t, tt.expectedPrice, initialItem.PurchasePrice)
+			assert.True(t, initialItem.UpdatedAt.After(originalUpdatedAt))
+		})
+	}
+}
+
+
 func TestItem_Validate(t *testing.T) {
 	tests := []struct {
 		name        string
